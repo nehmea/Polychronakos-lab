@@ -43,7 +43,6 @@ mergeCounts = function(files, header=T, geneCol, countsCol, sampleNames=NULL){
                                   current = ">",    # Current bar character
                                   clear = FALSE,    # If TRUE, clears the bar when finish
                                   width = 100)      # Width of the progress bar
-  count = 0
   for(file in files[2:length(files)]) {
     newData = read.table(file, header = header)[,c(geneCol,countsCol), drop=F]
     if(all.equal(output[,1], newData[,1])){
@@ -52,7 +51,6 @@ mergeCounts = function(files, header=T, geneCol, countsCol, sampleNames=NULL){
       print('skipping sample: ', file)
     }
     progress_bar$tick()
-    count = count + 1
   }
   
   rownames(output) = output[,1]
@@ -66,3 +64,30 @@ mergeCounts = function(files, header=T, geneCol, countsCol, sampleNames=NULL){
 }
 
 
+
+#calculates ratios between paired samples in an DESeq2ExpressionSet
+calculate_ratios = function(eset, is_log2, group_names, groups_col, conditions_col, primary_condition, ref_condition) {
+  require(progress)
+  pb = progress_bar$new(format = "(:spin) [:bar] :percent [Elapsed time: :elapsedfull || Estimated time remaining: :eta]",
+                        total = ncol(dds),
+                        complete = "=",   # Completion bar character
+                        incomplete = "-", # Incomplete bar character
+                        current = ">",    # Current bar character
+                        clear = FALSE,    # If TRUE, clears the bar when finish
+                        width = 100)      # Width of the progress bar
+  
+  difference = data.frame(genes = rownames(eset))
+  if(!is_log2) {assay(eset) = log2(assay(eset) + 1)}
+  for(group in group_names){
+    sub_eset = eset[,eset[[groups_col]] == group]
+    
+    if(dim(sub_eset)[2] == 2 & all(sub_eset[[conditions_col]] %in% c(primary_condition, ref_condition))) {
+      difference[group] = assay(sub_eset[, sub_eset[[conditions_col]] == primary_condition]) - assay(sub_eset[, sub_eset[[conditions_col]] == ref_condition])
+    }
+    pb$tick()
+  }
+  row.names(difference) = difference$genes
+  difference = difference[, -1]
+  if(!is_log2) {difference = 2^difference}
+  return(difference)
+}
