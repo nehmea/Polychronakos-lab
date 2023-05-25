@@ -91,3 +91,5 @@ calculate_ratios = function(eset, is_log2, group_names, groups_col, conditions_c
   if(!is_log2) {difference = 2^difference}
   return(difference)
 }
+
+
