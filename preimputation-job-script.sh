@@ -8,8 +8,10 @@
 while [[ "$#" -gt 0 ]]
   do
     case $1 in
-      -p|--prefix) PREFIX="$2"; shift;;       # Output file name
-          -str|--strand_file) STR_FILE="$2"; shift;;  # Strand file name
+	-p|--prefix) PREFIX="$2"; shift;;       # Output file name
+	-str|--strand_file) STR_FILE="$2"; shift;;  # Strand file name
+	-scr|--sample_call_rate) SAMPLE_CALLRATE="$2"; shift;; #sample quality cutoff
+	-vcr|--variant_call_rate) VARIANT_CALLRATE="$2"; shift;; #variant quality cutoff
     esac
     shift
 done
@@ -18,4 +20,4 @@ done
 chmod +x ./preimputation-script.sh
 
 #run script
-./preimputation-script.sh -p $PREFIX -str $STR_FILE
+./preimputation-script.sh -p $PREFIX -str $STR_FILE -scr $SAMPLE_CALLRATE -vcr $VARIANT_CALLRATE

@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --time=00:05:00
+#SBATCH --time=00:02:00
 #SBATCH --account=def-cpolychr
-
+#SBATCH --mem=500MB
 #Load required modules
 module purge
 module load vcftools
