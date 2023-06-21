@@ -52,12 +52,11 @@ fi
 
 vcf_file=$(basename "$vcf_file" .vcf.gz)
 annotation_file=$(basename "$annotation_file" .vcf.gz)
-
 filtered_vcf=$vcf_file"_filtered-MAF"$MAF_cutoff"-R"$Rsq_cutoff"_"$region
 vcf_without_chr=$filtered_vcf"_no-chr"
 filtered_annotation=$annotation_file"_"$region
 
-if [ -n "${annotation_file+x}" ]; then
+if [ -n "${annotation_file}" ]; then
 	phasing_input=$filtered_vcf'_rsId'
 else
 	phasing_input=$filtered_vcf
@@ -83,7 +82,10 @@ else
 	bcftools view $vcf_file".vcf.gz" -r $region -i 'R2>'$Rsq_cutoff' && MAF>'$MAF_cutoff -Oz -o $filtered_vcf".vcf.gz" --threads 12
 fi
 
-if [ -n "${annotation_file+x}"  ]; then
+if [ -z "${annotation_file}"  ]; then
+	echo "No annotation file defined; annotation will be skipped."
+	
+else
 	echo "annotating with rsIDs..."
 	
 	#preparing annotation file
