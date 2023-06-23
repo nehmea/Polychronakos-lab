@@ -1,7 +1,7 @@
 
 ############################### main parameters ###############################
 #prefix for bed files to load. make sure that the .bed, .bim, and .fam files have the smae names
-prefix='chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354'
+prefix='chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_resIds'
 # GitHub URL for model params
 model_url <- "https://github.com/nehmea/CP-helper-methods/raw/e191710b679443135026d0e8d35b7a8f82553c84/InfiniumGlobal-European-HLA4-hg19.RData"
 
@@ -92,8 +92,62 @@ for(loc in names(pred_results)){
 
 #write compiled information to txt file
 write.table(best_guess_results, 
-            'HIBAG_TOPMED-chr6_filtered-MAF0.01-R0.8_chr6-28477797-33448354_rsId.txt',
+            paste0('HIBAG_',prefix,'.txt'),
             sep='\t', col.names = NA)
 
+#write to EXCEL file
+library(xlsx)
+write.xlsx2(best_guess_results, 
+            paste0('HIBAG_',prefix,'.xlsx'),
+            sheetName = "HIBAG results",
+            col.names = TRUE, row.names = F, append = FALSE)
 # plot(density(pred_results[['A']]$value$matching))
 # plot.ecdf(pred_results[['A']]$value$matching)
+
+########################## statistical summary of results #################################
+library(ggplot2)
+
+####plot posterior probability per locus and save to file
+ggplot(best_guess_results, aes(x=locus, y=prob))+
+  geom_violin()+ 
+  geom_boxplot(width=0.05)+
+  labs(title="posterior probability by locus",x="Locus", y = "Posterior Probability")+
+  geom_hline(yintercept=0.8, linetype="dashed", color = "red")+
+  theme_classic()
+ggsave('HIBAG_posterior-probability-by-locus.png', dpi=300)
+
+####get number of samples with post prob below 0.8 or 0.7 for each locus
+#prob < 0.8
+prob_cutoff_0.8 = as.data.frame.matrix(table(best_guess_results$prob<0.8,
+      best_guess_results$locus), row.names = c('prob >= 0.8', 'prob < 0.8'))
+
+#prob < 0.7
+prob_cutoff_0.7 = as.data.frame.matrix(table(best_guess_results$prob<0.7,
+                                             best_guess_results$locus),
+                                       row.names = c('prob >= 0.7', 'prob < 0.7'))
+
+#merge into one dataframe
+prob_cutoff_res = rbind(prob_cutoff_0.8, '#','#', prob_cutoff_0.7)
+
+#append to EXCEL file
+write.xlsx2(prob_cutoff_res, 
+            paste0('HIBAG_',prefix,'.xlsx'),
+            sheetName = "prob-cutoff-summary",
+            col.names = TRUE, row.names = T, append = T)
+
+###statistical summary of posterior probabilities per locus
+#create dataframe to store results
+statistical_summary=data.frame()
+#loop through each locus and append its summary to the results file
+for (loc in unique(best_guess_results$locus)) {
+  loc_summary=t(as.matrix(summary(best_guess_results[best_guess_results$locus==loc, 'prob'])))
+  statistical_summary=rbind(statistical_summary, loc_summary)
+}
+#assign rownames to the results
+rownames(statistical_summary) = unique(best_guess_results$locus)
+
+#append statistical summary to EXCEL file
+write.xlsx2(statistical_summary, 
+            paste0('HIBAG_',prefix,'.xlsx'),
+            sheetName = "prob-summary-per-locus",
+            col.names = TRUE, row.names = T, append = T)
