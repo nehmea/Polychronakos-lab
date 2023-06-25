@@ -1,4 +1,6 @@
 
+library(xlsx)
+
 ############################### main parameters ###############################
 #prefix for bed files to load. make sure that the .bed, .bim, and .fam files have the smae names
 prefix='chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_resIds'
@@ -107,6 +109,24 @@ write.xlsx2(best_guess_results,
 ########################## statistical summary of results #################################
 library(ggplot2)
 
+###statistical summary of posterior probabilities per locus
+#create dataframe to store results
+statistical_summary=data.frame()
+#loop through each locus and append its summary to the results file
+for (loc in unique(best_guess_results$locus)) {
+  loc_summary=t(as.matrix(summary(best_guess_results[best_guess_results$locus==loc, 'prob'])))
+  statistical_summary=rbind(statistical_summary, loc_summary)
+}
+#assign rownames to the results
+rownames(statistical_summary) = unique(best_guess_results$locus)
+
+#append statistical summary to EXCEL file
+write.xlsx2(statistical_summary, 
+            paste0('HIBAG_',prefix,'.xlsx'),
+            sheetName = "prob-summary-per-locus",
+            col.names = TRUE, row.names = T, append = T)
+
+
 ####plot posterior probability per locus and save to file
 ggplot(best_guess_results, aes(x=locus, y=prob))+
   geom_violin()+ 
@@ -135,19 +155,40 @@ write.xlsx2(prob_cutoff_res,
             sheetName = "prob-cutoff-summary",
             col.names = TRUE, row.names = T, append = T)
 
-###statistical summary of posterior probabilities per locus
-#create dataframe to store results
-statistical_summary=data.frame()
-#loop through each locus and append its summary to the results file
-for (loc in unique(best_guess_results$locus)) {
-  loc_summary=t(as.matrix(summary(best_guess_results[best_guess_results$locus==loc, 'prob'])))
-  statistical_summary=rbind(statistical_summary, loc_summary)
-}
-#assign rownames to the results
-rownames(statistical_summary) = unique(best_guess_results$locus)
 
-#append statistical summary to EXCEL file
-write.xlsx2(statistical_summary, 
+####get number of loci with post prob greater than 0.8 or 0.7 for each sample
+#get the important locus for T1D score calculation
+best_guess_results_imp=best_guess_results[best_guess_results$locus %in% c('A', 'B', 'C', 'DQB1'), ]
+
+#get the number of loci with prob greater than 0.8 or 0.7 for each sample
+best_guess_results_imp_count_cutoff_0.8 = t(as.data.frame.matrix(table(best_guess_results_imp$prob<0.8, best_guess_results_imp$sample.id), 
+                     row.names = c('count_prob>=0.8', 'count_prob<0.8')))
+best_guess_results_imp_count_cutoff_0.7 = t(as.data.frame.matrix(table(best_guess_results_imp$prob<0.7, best_guess_results_imp$sample.id), 
+                                                           row.names = c('count_prob>=0.7', 'count_prob<0.7')))
+#merge the two dataframes
+best_guess_results_imp_count_cutoff = cbind(best_guess_results_imp_count_cutoff_0.8, best_guess_results_imp_count_cutoff_0.7)
+#append to EXCEL file
+write.xlsx2(as.data.frame(best_guess_results_imp_count_cutoff, check.names=F, optional = TRUE), 
             paste0('HIBAG_',prefix,'.xlsx'),
-            sheetName = "prob-summary-per-locus",
+            sheetName = "count_best_guess_imp-locus",
             col.names = TRUE, row.names = T, append = T)
+
+#get the count of samples vs the number of loci with prob greater than 0.8 or 0.7 for each sample
+#e.g. what is the number of samples with prob > 0.8 in 1,2,3 or 4 loci
+count_samples_prob_threshold = data.frame(
+  count_locus=paste0('count_loci=',names(table(factor(best_guess_results_imp_count_cutoff[,1])))),
+  count_samples_prob_0.8= as.vector(table(factor(best_guess_results_imp_count_cutoff[,1]))), 
+  count_samples_prob_0.7= as.vector(table(factor(best_guess_results_imp_count_cutoff[,3]))),
+  row.names=1
+  )
+
+#append to EXCEL file
+write.xlsx2(as.data.frame(count_samples_prob_threshold, check.names=F, optional = TRUE), 
+            paste0('HIBAG_',prefix,'.xlsx'),
+            sheetName = "count_samples-vs-prob_threshold",
+            col.names = TRUE, row.names = T, append = T)
+
+
+
+
+        
