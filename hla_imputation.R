@@ -167,6 +167,7 @@ best_guess_results_imp_count_cutoff_0.7 = t(as.data.frame.matrix(table(best_gues
                                                            row.names = c('count_prob>=0.7', 'count_prob<0.7')))
 #merge the two dataframes
 best_guess_results_imp_count_cutoff = cbind(best_guess_results_imp_count_cutoff_0.8, best_guess_results_imp_count_cutoff_0.7)
+best_guess_results_imp_count_cutoff = as.data.frame(best_guess_results_imp_count_cutoff, check.names=F, optional = TRUE)
 #append to EXCEL file
 write.xlsx2(as.data.frame(best_guess_results_imp_count_cutoff, check.names=F, optional = TRUE), 
             paste0('HIBAG_',prefix,'.xlsx'),
@@ -188,7 +189,67 @@ write.xlsx2(as.data.frame(count_samples_prob_threshold, check.names=F, optional 
             sheetName = "count_samples-vs-prob_threshold",
             col.names = TRUE, row.names = T, append = T)
 
+#######################  preparing input for GRS2 calculation ####################### 
+cutoff=0.7
+included_samples = rownames(best_guess_results_imp_count_cutoff)[best_guess_results_imp_count_cutoff$`count_prob>=0.7` == 4]
+haplotypes = best_guess_results[best_guess_results$sample.id %in% included_samples, ]
+haplotypes$locus = paste0('hla_',tolower(haplotypes$locus))
+colnames(haplotypes) = gsub('allele', '', colnames(haplotypes))
 
+allele_names <- c()
+for (s in unique(haplotypes$locus)) {
+  for (n in c(1,2)) {
+    combination <- paste(s, n, sep = "_")
+    allele_names <- c(allele_names, combination)
+  }
+}
 
+#######################  preparing input for GRS2 calculation v2 ####################### 
+cutoff=0.7
+included_samples = rownames(best_guess_results_imp_count_cutoff)[best_guess_results_imp_count_cutoff$`count_prob>=0.7` == 4]
+haplotypes = best_guess_results[best_guess_results$sample.id %in% included_samples, ]
+interaction_betas = read.table('interaction_betas.txt', header=T)
+drdq_betas = read.table('dr-dq_betas.txt', header=T)
+non_drdq_betas = read.table('non-dr-dq_betas.txt', header=T)
+non_hla_betas = read.table('non-hla_betas.txt', header=T)
 
-        
+for(sample_name in unique(haplotypes$sample.id)[1]) {
+  sample_hla_haplotypes = haplotypes[haplotypes$sample.id == sample_name, ]
+  
+  
+  
+  #interaction
+  hap1 = sample_hla_haplotypes[sample_hla_haplotypes$locus %in% c('DQA1', 'DQB1'), 'allele1']
+  hap2 = sample_hla_haplotypes[sample_hla_haplotypes$locus %in% c('DQA1', 'DQB1'), 'allele2']
+  interaction_haplotype = which(
+    (gsub('X',substr(hap1[1], 5,5),interaction_betas[, c('h1_DQA1')]) %in% hap1[1] &
+          interaction_betas[, c('h1_DQB1')] %in% hap1[2] &
+          gsub('X',substr(hap2[1], 5,5),interaction_betas[, c('h2_DQA1')]) %in% hap2[1] &
+          interaction_betas[, c('h2_DQB1')] %in% hap2[2]
+     ) 
+    |
+      (gsub('X',substr(hap2[1], 5,5),interaction_betas[, c('h1_DQA1')]) %in% hap2[1] &
+             interaction_betas[, c('h1_DQB1')] %in% hap2[2] &
+             gsub('X',substr(hap1[1], 5,5),interaction_betas[, c('h2_DQA1')]) %in% hap1[1] &
+             interaction_betas[, c('h2_DQB1')] %in% hap1[2])
+    )
+  
+  if(!identical(interaction_haplotype, integer(0))) {
+    interaction_hap_beta = interaction_betas$Beta[interaction_haplotype]
+    
+    #no interaction
+  } else {
+    drdq_haplotypes = which(
+      (gsub('X',substr(hap1[1], 5,5),drdq_betas[, c('DQA1')]) %in% hap1[1] | 
+            gsub('X',substr(hap2[1], 5,5),drdq_betas[, c('DQA1')]) %in% hap2[1]
+       ) & 
+        (drdq_betas[, c('DQB1')] %in% c(hap1[2], hap2[2]))
+      )
+    if(!identical(drdq_haplotype, integer(0))) {
+      drdq_hap_betas = drdq_betas$Beta[drdq_haplotypes]
+      }
+  }
+  
+  
+}
+
