@@ -7,6 +7,13 @@ prefix='chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_resIds'
 # GitHub URL for model params
 model_url <- "https://github.com/nehmea/CP-helper-methods/raw/e191710b679443135026d0e8d35b7a8f82553c84/InfiniumGlobal-European-HLA4-hg19.RData"
 
+############################### Methods ###############################
+gsub_file = function(file_name, pattern, replacement) {
+  fam=readLines(paste0(file_name,".fam"))
+  fam=gsub(pattern, replacement, fam)
+  writeLines(fam, paste0(file_name,".fam"))
+  return(TRUE)
+}
 
 ############################### loading model params ############################### 
 #getting model params available in gitHub repo
@@ -189,7 +196,7 @@ write.xlsx2(as.data.frame(count_samples_prob_threshold, check.names=F, optional 
             sheetName = "count_samples-vs-prob_threshold",
             col.names = TRUE, row.names = T, append = T)
 
-#######################  preparing input for GRS2 calculation ####################### 
+#######################  preparing input for GRS2 calculation v1 ####################### 
 cutoff=0.7
 included_samples = rownames(best_guess_results_imp_count_cutoff)[best_guess_results_imp_count_cutoff$`count_prob>=0.7` == 4]
 haplotypes = best_guess_results[best_guess_results$sample.id %in% included_samples, ]
@@ -212,11 +219,29 @@ interaction_betas = read.table('interaction_betas.txt', header=T)
 drdq_betas = read.table('dr-dq_betas.txt', header=T)
 non_drdq_betas = read.table('non-dr-dq_betas.txt', header=T)
 non_hla_betas = read.table('non-hla_betas.txt', header=T)
+non_hla_prefix='grs2-non-hla-snps_rsIds'
+gsub_file(non_hla_prefix, "#", "_")
+non_hla_genotypes = hlaBED2Geno(bed.fn=paste0(non_hla_prefix,".bed"), 
+                               fam.fn=paste0(non_hla_prefix,".fam"),
+                               bim.fn=paste0(non_hla_prefix,".bim"),
+                               rm.invalid.allele=TRUE,
+                               assembly='hg38',
+                                import.chr=""
+                                )
+non_hla_genotypes = as.data.frame(matrix(non_hla_genotypes$genotype, 
+                            nrow=nrow(non_hla_genotypes$genotype),
+                            dimnames=list(non_hla_genotypes$snp.id, non_hla_genotypes$sample.id)),
+                            check.names=F)
+non_hla_genotypes = non_hla_genotypes[, included_samples]
 
 for(sample_name in unique(haplotypes$sample.id)[1]) {
   sample_hla_haplotypes = haplotypes[haplotypes$sample.id == sample_name, ]
   
+  #other hla alleles
+  hla_alleles_betas = non_drdq_betas$Beta[which(non_drdq_betas$SNP %in% genotypes$snp.id)]
   
+  #non-hla alleles
+  non_hla_alleles_betas = non_hla_betas$Beta[which(non_hla_betas$SNP %in% rownames(non_hla_genotypes)[non_hla_genotypes[, sample_name]>0])]
   
   #interaction
   hap1 = sample_hla_haplotypes[sample_hla_haplotypes$locus %in% c('DQA1', 'DQB1'), 'allele1']
@@ -249,7 +274,5 @@ for(sample_name in unique(haplotypes$sample.id)[1]) {
       drdq_hap_betas = drdq_betas$Beta[drdq_haplotypes]
       }
   }
-  
-  
 }
 
