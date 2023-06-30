@@ -212,67 +212,103 @@ for (s in unique(haplotypes$locus)) {
 }
 
 #######################  preparing input for GRS2 calculation v2 ####################### 
-cutoff=0.7
-included_samples = rownames(best_guess_results_imp_count_cutoff)[best_guess_results_imp_count_cutoff$`count_prob>=0.7` == 4]
-haplotypes = best_guess_results[best_guess_results$sample.id %in% included_samples, ]
+
+#beta values for score calaculation
 interaction_betas = read.table('interaction_betas.txt', header=T)
 drdq_betas = read.table('dr-dq_betas.txt', header=T)
 non_drdq_betas = read.table('non-dr-dq_betas.txt', header=T)
 non_hla_betas = read.table('non-hla_betas.txt', header=T)
+
+#imputed haplotypes
+cutoff=0.7
+included_samples = rownames(best_guess_results_imp_count_cutoff)[best_guess_results_imp_count_cutoff$`count_prob>=0.7` == 4]
+haplotypes = best_guess_results[best_guess_results$sample.id %in% included_samples, ]
+haplotypes[haplotypes$prob<cutoff, c('allele1', 'allele2')] <- NA
+
+#hla snp-sample matrix
+hla_genotypes = as.data.frame(matrix(genotypes$genotype, 
+                                         nrow=nrow(genotypes$genotype),
+                                         dimnames=list(genotypes$snp.id, genotypes$sample.id)),
+                                  check.names=F)
+
+#non-hla snp-sample matrix
 non_hla_prefix='grs2-non-hla-snps_rsIds'
 gsub_file(non_hla_prefix, "#", "_")
 non_hla_genotypes = hlaBED2Geno(bed.fn=paste0(non_hla_prefix,".bed"), 
-                               fam.fn=paste0(non_hla_prefix,".fam"),
-                               bim.fn=paste0(non_hla_prefix,".bim"),
-                               rm.invalid.allele=TRUE,
-                               assembly='hg38',
+                                fam.fn=paste0(non_hla_prefix,".fam"),
+                                bim.fn=paste0(non_hla_prefix,".bim"),
+                                rm.invalid.allele=TRUE,
+                                assembly='hg38',
                                 import.chr=""
-                                )
+)
 non_hla_genotypes = as.data.frame(matrix(non_hla_genotypes$genotype, 
                             nrow=nrow(non_hla_genotypes$genotype),
                             dimnames=list(non_hla_genotypes$snp.id, non_hla_genotypes$sample.id)),
                             check.names=F)
 non_hla_genotypes = non_hla_genotypes[, included_samples]
 
-for(sample_name in unique(haplotypes$sample.id)[1]) {
+grs2_scores = data.frame(matrix(NA, nrow = length(unique(haplotypes$sample.id)), dimnames=list(unique(haplotypes$sample.id), 'grs2_score')))
+for(sample_name in unique(haplotypes$sample.id)) {
+  
   sample_hla_haplotypes = haplotypes[haplotypes$sample.id == sample_name, ]
+  sample_interaction_hap_score = 0
+  sample_drdq_score = 0
+  sample_hla_score = 0
+  sample_non_hla_score = 0
+
+  
   
   #other hla alleles
-  hla_alleles_betas = non_drdq_betas$Beta[which(non_drdq_betas$SNP %in% genotypes$snp.id)]
+  sample_hla_betas = non_drdq_betas
+  sample_hla_betas = merge(sample_hla_betas, 
+                                   data.frame(SNP = sample_hla_betas$SNP,
+                                              count = hla_genotypes[sample_hla_betas$SNP, sample_name]),
+                                   by = 'SNP')
+  sample_hla_score = sum(sample_hla_betas$Beta*sample_hla_betas$count, na.rm = T)
   
   #non-hla alleles
-  non_hla_alleles_betas = non_hla_betas$Beta[which(non_hla_betas$SNP %in% rownames(non_hla_genotypes)[non_hla_genotypes[, sample_name]>0])]
+  sample_non_hla_betas = non_hla_betas
+  sample_non_hla_betas = merge(sample_non_hla_betas, 
+                           data.frame(SNP = sample_non_hla_betas$SNP,
+                                      count = non_hla_genotypes[sample_non_hla_betas$SNP, sample_name]),
+                           by = 'SNP')
+  sample_non_hla_score = sum(sample_non_hla_betas$Beta*sample_non_hla_betas$count, na.rm = T)
   
   #interaction
   hap1 = sample_hla_haplotypes[sample_hla_haplotypes$locus %in% c('DQA1', 'DQB1'), 'allele1']
   hap2 = sample_hla_haplotypes[sample_hla_haplotypes$locus %in% c('DQA1', 'DQB1'), 'allele2']
-  interaction_haplotype = which(
-    (gsub('X',substr(hap1[1], 5,5),interaction_betas[, c('h1_DQA1')]) %in% hap1[1] &
+  interaction_haplotype = (
+    c(gsub('X',substr(hap1[1], 5,5),interaction_betas[, c('h1_DQA1')]) %in% hap1[1] &
           interaction_betas[, c('h1_DQB1')] %in% hap1[2] &
           gsub('X',substr(hap2[1], 5,5),interaction_betas[, c('h2_DQA1')]) %in% hap2[1] &
           interaction_betas[, c('h2_DQB1')] %in% hap2[2]
      ) 
     |
-      (gsub('X',substr(hap2[1], 5,5),interaction_betas[, c('h1_DQA1')]) %in% hap2[1] &
+      c(gsub('X',substr(hap2[1], 5,5),interaction_betas[, c('h1_DQA1')]) %in% hap2[1] &
              interaction_betas[, c('h1_DQB1')] %in% hap2[2] &
              gsub('X',substr(hap1[1], 5,5),interaction_betas[, c('h2_DQA1')]) %in% hap1[1] &
-             interaction_betas[, c('h2_DQB1')] %in% hap1[2])
+             interaction_betas[, c('h2_DQB1')] %in% hap1[2]
+       )
     )
   
-  if(!identical(interaction_haplotype, integer(0))) {
-    interaction_hap_beta = interaction_betas$Beta[interaction_haplotype]
-    
+  if(any(interaction_haplotype)) {
+    sample_interaction_hap_score = interaction_betas$Beta[interaction_haplotype]
+    sample_drdq_score = 0
     #no interaction
   } else {
-    drdq_haplotypes = which(
-      (gsub('X',substr(hap1[1], 5,5),drdq_betas[, c('DQA1')]) %in% hap1[1] | 
-            gsub('X',substr(hap2[1], 5,5),drdq_betas[, c('DQA1')]) %in% hap2[1]
-       ) & 
-        (drdq_betas[, c('DQB1')] %in% c(hap1[2], hap2[2]))
-      )
-    if(!identical(drdq_haplotype, integer(0))) {
-      drdq_hap_betas = drdq_betas$Beta[drdq_haplotypes]
-      }
+    interaction_hap_score = 0
+    sample_drdq_betas = drdq_betas
+    sample_drdq_betas$hap1 = as.numeric(gsub('X',substr(hap1[1], 5,5),drdq_betas[, c('DQA1')]) %in% hap1[1] & 
+         (drdq_betas[, c('DQB1')] %in% hap1[2])) 
+    sample_drdq_betas$hap2 = as.numeric(gsub('X',substr(hap2[1], 5,5),drdq_betas[, c('DQA1')]) %in% hap2[1] &
+        (drdq_betas[, c('DQB1')] %in% hap2[2]))
+    sample_drdq_betas$hap_counts = sample_drdq_betas$hap1 + sample_drdq_betas$hap2
+    sample_drdq_score = sum(sample_drdq_betas$Beta * sample_drdq_betas$hap_counts, na.rm = T)
   }
+  grs2_scores[sample_name, 'grs2_score'] = sample_interaction_hap_score + sample_drdq_score + sample_hla_score + sample_non_hla_score
 }
 
+library(ggplot2)
+ggplot(grs2_scores, aes(x='Score',y=grs2_score))+
+  geom_violin()+
+  geom_boxplot(width=0.1)
