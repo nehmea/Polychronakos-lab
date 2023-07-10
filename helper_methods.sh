@@ -1,5 +1,5 @@
 #extract columns and rows from vcf file
-bcftools query -f '%ID\t%CHROM\t%POS\t%REF\t%ALT\n' -i 'ID=@non-hla_rsIds.txt' ./dbsnp-All-hg38.vcf.gz > non-hla-allele-position.txt
+bcftools query -f '%ID\t%CHROM\t%POS\t%REF\t%ALT\n' -i 'ID=@grs2_alleles_rsIds.txt' dbsnp-All-hg38.vcf.gz > grs2-alleles-info.txt
 
 #recode plink bed to vcf
 plink --bfile [filename prefix] --recode vcf --out [VCF prefix]
