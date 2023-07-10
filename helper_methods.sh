@@ -1,5 +1,5 @@
 #extract columns and rows from vcf file
-bcftools view --include ID==@grs2_alleles_rsIds.list ../dbsnp-All-hg38.vcf.gz --threads 6 | bcftools query -f '%ID\t%CHROM\t%POS\t%REF\t%ALT\n' > grs2-alleles-info.txt
+bcftools view --include ID==@grs2_alleles_rsIds.list ../dbsnp-All-hg38.vcf.gz --threads 6 | bcftools query -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' > grs2-alleles-info.txt
 
 #recode plink bed to vcf
 plink --bfile [filename prefix] --recode vcf --out [VCF prefix]
