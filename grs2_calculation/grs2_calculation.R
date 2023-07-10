@@ -4,7 +4,8 @@ rm(list=ls())
 ##############################  parameters ##############################  
 #important loci and prob cutoff to filter samples
 prob_cutoff = 0.7
-important_loci = c('A', 'B', 'C', 'DQA1','DQB1')
+important_loci = c('DQA1','DQB1'#, 'A', 'B', 'C', 
+                   )
 
 
 #path to hla imputations. this should be a tab-delimited file. The file should include the following columns:
@@ -12,11 +13,11 @@ important_loci = c('A', 'B', 'C', 'DQA1','DQB1')
 #sample_id: sample id should be unique for each sample
 #allele1, allele2: alleles 1 and 2 for each sample
 #prob: probability of imputed HLA haplotype
-hla_imputations_file = "HIBAG_chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_rsId.txt"
+hla_imputations_file = "../HIBAG_chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_rsId.txt"
 
 #hla and non-hla bed files
-hla_bed_prefix='chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_rsId'
-non_hla_prefix='grs2-non-hla-snps_rsIds'
+hla_bed_prefix='../chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_rsId'
+non_hla_prefix='../grs2-non-hla-snps_rsIds'
 
 #beta value files for score calculation
 interaction_betas_file = 'https://raw.githubusercontent.com/nehmea/Polychronakos-lab/main/grs2_calculation/grs2-interaction_betas.txt'
@@ -38,7 +39,7 @@ sink(log_file, append = TRUE, split=T)
 
 ############################### required packages ###############################
 # List of required packages
-required_packages <- c('ggplot2', 'progress')
+required_packages <- c('ggplot2', 'progress', 'xlsx')
 
 # Check if each required package is installed
 missing_packages <- setdiff(required_packages, installed.packages()[, "Package"])
@@ -142,7 +143,7 @@ drdq_betas = read.table(drdq_betas_file, header=T)
 non_drdq_betas = read.table(non_drdq_betas_file, header=T)
 non_hla_betas = read.table(non_hla_betas_file, header=T)
 
-missing_hla_snps = non_drdq_betas[non_drdq_betas$SNP %in% setdiff(sample_non_drdq_betas$SNP, rownames(hla_genotypes_df)),]
+missing_hla_snps = non_drdq_betas[non_drdq_betas$SNP %in% setdiff(non_drdq_betas$SNP, rownames(hla_genotypes_df)),]
 write.table(missing_hla_snps, 'missing_grs2_hla_snps_in_cohort.txt', sep='\t', row.names = F)
 
 missing_non_hla_snps = non_hla_betas[non_hla_betas$SNP %in% setdiff(non_hla_betas$SNP, rownames(non_hla_genotypes_df)),]
@@ -156,10 +157,10 @@ grs2_scores = data.frame(matrix(NA,
                                 )
                          )
 
-sample_non_drdq_betas = non_drdq_betas
-sample_non_hla_betas = non_hla_betas
 sample_interaction_betas = interaction_betas
 sample_drdq_betas = drdq_betas
+sample_non_drdq_betas = non_drdq_betas
+sample_non_hla_betas = non_hla_betas
 
 #progress bar
 rm(prog_bar)
@@ -171,7 +172,7 @@ prog_bar = progress_bar$new(format = "(:spin) [:bar] :percent [Elapsed time: :el
                                 clear = FALSE,    # If TRUE, clears the bar when finish
                                 width = 100)      # Width of the progress bar
 
-for(sample_id in unique(haplotypes$sample_id)) {
+for(sample_id in as.character(unique(haplotypes$sample_id))) {
   
   if(! sample_id %in% included_samples) {
     #grs2_scores[sample_id, 'grs2_score'] = 'low_quality'
@@ -185,7 +186,7 @@ for(sample_id in unique(haplotypes$sample_id)) {
   #other hla alleles score
   sample_non_drdq_betas = merge(sample_non_drdq_betas, 
                            data.frame(SNP = sample_non_drdq_betas$SNP,
-                                      count = hla_genotypes_df[sample_non_drdq_betas$SNP, sample_id, drop=F],
+                                      count = hla_genotypes_df[sample_non_drdq_betas$SNP, as.character(sample_id), drop=F],
                                       check.names = F),
                            by = 'SNP')
   grs2_scores[sample_id, 'non_drdq_score'] = sum(sample_non_drdq_betas$Beta * sample_non_drdq_betas[,sample_id], na.rm = T)
@@ -224,10 +225,10 @@ for(sample_id in unique(haplotypes$sample_id)) {
   } else {
     grs2_scores[sample_id, 'interaction_score'] = 0
 
-    sample_drdq_betas_hap1 = as.numeric(gsub('X',substr(hap1[1], 5,5),drdq_betas[, c('DQA1')]) %in% hap1[1] & 
-                                          (drdq_betas[, c('DQB1')] %in% hap1[2])) 
+    sample_drdq_betas_hap1 = as.numeric(gsub('X', substr(hap1[1], 5,5),drdq_betas[, c('DQA1')]) %in% hap1[1] & 
+                                          (drdq_betas[, c('DQB1')] %in% c(hap1[2], hap2[2]))) 
     sample_drdq_betas_hap2 = as.numeric(gsub('X',substr(hap2[1], 5,5),drdq_betas[, c('DQA1')]) %in% hap2[1] &
-                                          (drdq_betas[, c('DQB1')] %in% hap2[2]))
+                                          (drdq_betas[, c('DQB1')] %in% c(hap1[2], hap2[2])))
     sample_drdq_betas[,sample_id] = sample_drdq_betas_hap1 + sample_drdq_betas_hap2
     grs2_scores[sample_id, 'drdq_score'] = sum(sample_drdq_betas$Beta * sample_drdq_betas[,sample_id], na.rm = T)
   }
@@ -237,11 +238,19 @@ for(sample_id in unique(haplotypes$sample_id)) {
 }
 
 grs2_scores$grs2_score = rowSums(grs2_scores)
-write.table(grs2_scores, 'grs2_scores.txt', sep = '\t', col.names = NA)
-write.table(sample_interaction_betas, 'sample_interaction_betas.txt', sep = '\t', col.names = NA)
-write.table(sample_drdq_betas, 'sample_drdq_betas.txt', sep = '\t', col.names = NA)
-write.table(sample_non_drdq_betas, 'sample_non_drdq_betas.txt', sep = '\t', col.names = NA)
-write.table(sample_non_hla_betas, 'sample_non_hla_betas.txt', sep = '\t', col.names = NA)
+#append to EXCEL file
+write.xlsx2(grs2_scores, 
+            paste0('grs2-scores.xlsx'),
+            sheetName = "grs2_scores",
+            col.names = TRUE, row.names = T, append = F, showNA=T)
+
+
+for(score_data in c('sample_interaction_betas', 'sample_drdq_betas', 'sample_non_drdq_betas', 'sample_non_hla_betas')) {
+  write.xlsx2(get(score_data), 
+              paste0('grs2-scores.xlsx'),
+              sheetName = score_data,
+              col.names = TRUE, row.names = T, append = T, showNA=T)
+}
 
 ggplot(grs2_scores, aes(x='Score', y=grs2_score))+
   geom_violin()+
@@ -255,6 +264,10 @@ sum(grs2_scores$grs2_score > percentile_90, na.rm=T)
 ############################## closing log file ################################
 # Stop writing to the log file
 sink()
+sink()
 
-
-
+# #TODO: spread haplotypes and add scores and betas to check if they align
+# data.frame(sample_id=NA, allel1=NA, allele2=NA,t(interaction_betas[, 1:4]))
+# x = haplotypes[haplotypes$locus %in% c('DQA1', 'DQB1'), c('locus','sample_id', 'allele1', 'allele2')]
+# rownames(x) = x[, 1]
+# t(sample_interaction_betas)
