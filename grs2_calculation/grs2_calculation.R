@@ -13,11 +13,11 @@ important_loci = c('DQA1','DQB1'#, 'A', 'B', 'C',
 #sample_id: sample id should be unique for each sample
 #allele1, allele2: alleles 1 and 2 for each sample
 #prob: probability of imputed HLA haplotype
-hla_imputations_file = "../HIBAG_chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_rsId.txt"
+hla_imputations_file = "jacob_data_reshaped.txt"
 
 #hla and non-hla bed files
-hla_bed_prefix='../chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_rsId'
-non_hla_prefix='../grs2-non-hla-snps_rsIds'
+hla_bed_prefix=''
+non_hla_prefix='t1dgc_grs2-snps_3971_rsIds'
 
 #beta value files for score calculation
 interaction_betas_file = 'https://raw.githubusercontent.com/nehmea/Polychronakos-lab/main/grs2_calculation/grs2-interaction_betas.txt'
@@ -89,7 +89,7 @@ haplotypes[haplotypes$prob<prob_cutoff, c('allele1', 'allele2')] <- NA
 #perform cutoff to get high-qulaity samples
 included_samples = c()
 for(sample_id in unique(haplotypes$sample_id)) {
-  if(!any(as.vector(haplotypes[haplotypes$sample_id == sample_id & haplotypes$locus %in% important_loci, c('prob')])< prob_cutoff)) {
+  if(all(as.vector(haplotypes[haplotypes$sample_id == sample_id & haplotypes$locus %in% important_loci, c('prob')])> prob_cutoff)) {
     included_samples = c(included_samples, sample_id)
   }
 }
@@ -99,24 +99,28 @@ for(sample_id in unique(haplotypes$sample_id)) {
 
 ###hla snps ###
 #read bed files
+if(hla_bed_prefix != "" & !is.null(hla_bed_prefix)){
 hla_genotypes <- hlaBED2Geno(bed.fn=paste0(hla_bed_prefix,".bed"), 
                              fam.fn=paste0(hla_bed_prefix,".fam"),
                              bim.fn=paste0(hla_bed_prefix,".bim"),
                              rm.invalid.allele=TRUE
-                             )
+)
+
 #create snp-sample matrix
 hla_genotypes_df = as.data.frame(matrix(hla_genotypes$genotype, 
                                         nrow=nrow(hla_genotypes$genotype),
                                         dimnames=list(hla_genotypes$snp.id, hla_genotypes$sample.id)),
                                  check.names=F)
+
 #retain only hq samples
 #hla_genotypes_df = hla_genotypes_df[, included_samples]
 #delete unwanted object
 rm(hla_genotypes)
-
+}
 
 ###non-hla snps###
 #remove # chr from fam file to avoid errors
+if(non_hla_prefix != "" & !is.null(non_hla_prefix)){
 gsub_file(non_hla_prefix, "#", "_")
 #read bed files
 non_hla_genotypes = hlaBED2Geno(bed.fn=paste0(non_hla_prefix,".bed"), 
@@ -135,19 +139,31 @@ non_hla_genotypes_df = as.data.frame(matrix(non_hla_genotypes$genotype,
 #non_hla_genotypes_df = non_hla_genotypes_df[, included_samples]
 #remove unwanted object
 rm(non_hla_genotypes)
+}
 
 ###########################  GRS2 calculation ############################ 
 #beta value files for score calculation
-interaction_betas = data.frame(read.table(interaction_betas_file, header=T))
-drdq_betas = read.table(drdq_betas_file, header=T)
-non_drdq_betas = read.table(non_drdq_betas_file, header=T)
-non_hla_betas = read.table(non_hla_betas_file, header=T)
+for(filename in c('interaction_betas_file', 'drdq_betas_file', 'non_drdq_betas_file', 'non_hla_betas_file')) {
+  filename_value = get(filename)
+  if(filename_value != '' & !is.null(filename_value)) {
+    assign(gsub('_file', '', filename), read.table(filename_value, header=T))
+  }
+}
 
+# interaction_betas = data.frame(read.table(interaction_betas_file, header=T))
+# drdq_betas = read.table(drdq_betas_file, header=T)
+# non_drdq_betas = read.table(non_drdq_betas_file, header=T)
+# non_hla_betas = read.table(non_hla_betas_file, header=T)
+
+if(any(ls() %in% 'hla_genotypes_df')){
 missing_hla_snps = non_drdq_betas[non_drdq_betas$SNP %in% setdiff(non_drdq_betas$SNP, rownames(hla_genotypes_df)),]
 write.table(missing_hla_snps, 'missing_grs2_hla_snps_in_cohort.txt', sep='\t', row.names = F)
+}
 
+if(any(ls() %in% 'non_hla_genotypes_df')){
 missing_non_hla_snps = non_hla_betas[non_hla_betas$SNP %in% setdiff(non_hla_betas$SNP, rownames(non_hla_genotypes_df)),]
 write.table(missing_non_hla_snps, 'missing_grs2_non-hla_snps_in_cohort.txt', sep='\t', row.names = F)
+}
 
 grs2_scores = data.frame(matrix(NA, 
                                 nrow = length(unique(haplotypes$sample_id)),
@@ -184,21 +200,24 @@ for(sample_id in as.character(unique(haplotypes$sample_id))) {
   
   
   #other hla alleles score
+  if(any(ls() %in% 'hla_genotypes_df')){
   sample_non_drdq_betas = merge(sample_non_drdq_betas, 
                            data.frame(SNP = sample_non_drdq_betas$SNP,
                                       count = hla_genotypes_df[sample_non_drdq_betas$SNP, as.character(sample_id), drop=F],
                                       check.names = F),
                            by = 'SNP')
   grs2_scores[sample_id, 'non_drdq_score'] = sum(sample_non_drdq_betas$Beta * sample_non_drdq_betas[,sample_id], na.rm = T)
-  
+  }
   
   #non-hla alleles score
+  if(any(ls() %in% 'non_hla_genotypes_df')){
   sample_non_hla_betas = merge(sample_non_hla_betas, 
                                data.frame(SNP = sample_non_hla_betas$SNP,
                                           count = non_hla_genotypes_df[sample_non_hla_betas$SNP, sample_id, drop=F],
                                           check.names = F),
                                by = 'SNP')
   grs2_scores[sample_id, 'non_hla_score'] = sum(sample_non_hla_betas$Beta * sample_non_hla_betas[,sample_id], na.rm = T)
+  }
   
   #interaction
   hap1 = sample_hla_haplotypes[sample_hla_haplotypes$locus %in% c('DQA1', 'DQB1'), 'allele1']
@@ -237,7 +256,9 @@ for(sample_id in as.character(unique(haplotypes$sample_id))) {
   prog_bar$tick()
 }
 
-grs2_scores$grs2_score = rowSums(grs2_scores)
+#calculate grs2 score for all samples
+grs2_scores$grs2_score = rowSums(grs2_scores, na.rm = T)
+
 #append to EXCEL file
 write.xlsx2(grs2_scores, 
             paste0('grs2-scores.xlsx'),
@@ -252,11 +273,14 @@ for(score_data in c('sample_interaction_betas', 'sample_drdq_betas', 'sample_non
               col.names = TRUE, row.names = T, append = T, showNA=T)
 }
 
-ggplot(grs2_scores, aes(x='Score', y=grs2_score))+
+library(reshape2)
+ggplot(melt(grs2_scores), aes(x=variable, y=value))+
   geom_violin()+
   geom_boxplot(width=0.1, fill='grey')+ 
   theme_classic()
 ggsave('GRS2-score-distribution.png', dpi=300)
+
+boxplot(grs2_scores)
 
 percentile_90 = quantile(grs2_scores$grs2_score, probs = 0.9, na.rm = T)
 sum(grs2_scores$grs2_score > percentile_90, na.rm=T)
