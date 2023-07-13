@@ -7,7 +7,7 @@ important_loci <- c(
   "DQA1", "DQB1" # , 'A', 'B', 'C',
 )
 
-
+output_grs2_filename = 't1dgc_phased_grs2-scores'
 # path to hla imputations. this should be a tab-delimited file. The file should include the following columns:
 # locus: HLA locus, make sure the loci names as follows c("A", "B", "C", "DRB1", "DQA1", "DQB1", "DPB1")
 # sample_id: sample id should be unique for each sample
@@ -308,7 +308,7 @@ grs2_scores$grs2_score[!complete.cases(grs2_scores)] <- NA
 
 # append to EXCEL file
 write.xlsx2(grs2_scores,
-  paste0("t1dgc_grs2-scores_phased.xlsx"),
+  paste0(output_grs2_filename, '.xlsx'),
   sheetName = "grs2_scores",
   col.names = TRUE, row.names = T, append = F, showNA = T
 )
@@ -316,7 +316,7 @@ write.xlsx2(grs2_scores,
 
 for (score_data in c("sample_interaction_betas", "sample_drdq_betas", "sample_non_drdq_betas", "sample_non_hla_betas")) {
   write.xlsx2(get(score_data),
-    paste0("t1dgc_grs2-scores_phased.xlsx"),
+              paste0(output_grs2_filename, '.xlsx'),
     sheetName = score_data,
     col.names = TRUE, row.names = T, append = T, showNA = T
   )
@@ -327,7 +327,7 @@ ggplot(melt(grs2_scores), aes(x = variable, y = value)) +
   geom_violin() +
   geom_boxplot(width = 0.1, fill = "grey") +
   theme_classic()
-ggsave("t1dgc_phased_GRS2-score-distribution.png", dpi = 300)
+ggsave(paste0(output_grs2_filename, 'violin_plot.png'), dpi = 300)
 
 #boxplot(grs2_scores)
 
