@@ -192,6 +192,9 @@ for (filename in c("interaction_betas_file", "drdq_betas_file", "non_drdq_betas_
   }
 }
 
+genotypes_df = genotypes_df[rownames(genotypes_df) %in% c(non_drdq_betas$SNP, non_hla_betas$SNP), ]
+write.table(genotypes_df, "grs2_genotypes.txt", sep = "\t", col.names = NA)
+
 # interaction_betas = data.frame(read.table(interaction_betas_file, header=T))
 # drdq_betas = read.table(drdq_betas_file, header=T)
 # non_drdq_betas = read.table(non_drdq_betas_file, header=T)
@@ -323,6 +326,7 @@ for (score_data in c("sample_interaction_betas", "sample_drdq_betas", "sample_no
 }
 
 library(reshape2)
+library(ggplot2)
 ggplot(melt(grs2_scores), aes(x = variable, y = value)) +
   geom_violin() +
   geom_boxplot(width = 0.1, fill = "grey") +
