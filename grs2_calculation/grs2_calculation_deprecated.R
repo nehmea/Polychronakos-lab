@@ -269,6 +269,10 @@ for (sample_id in sample_id_list) {
     # )
     sample_non_hla_betas[, sample_id] = genotypes_df[sample_non_hla_betas$SNP, sample_id]
     grs2_scores[sample_id, "non_hla_score"] <- sum(sample_non_hla_betas$Beta * sample_non_hla_betas[, sample_id], na.rm = T)
+  } else {
+    
+    stop(sprintf("genotypes_df not found or no genotypes found for %s", sample_id))
+    
   }
 
   # interaction
