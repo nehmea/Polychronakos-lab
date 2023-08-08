@@ -36,9 +36,6 @@ done
 sudo mkdir "./${output_dir}"
 sudo mkdir "./${output_dir}/bed_files"
 
-
-
-
 # Loop through each chromosome
 process_chromosome() {
 	local chr_num="$1"
