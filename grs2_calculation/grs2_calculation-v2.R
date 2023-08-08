@@ -7,21 +7,17 @@ important_loci <- c(
   "DQA1", "DQB1" # , 'A', 'B', 'C',
 )
 
-output_grs2_filename = 't1dgc_phased_grs2-scores'
+output_grs2_filename = 'ukbb_grs2-scores'
 # path to hla imputations. this should be a tab-delimited file. The file should include the following columns:
 # locus: HLA locus, make sure the loci names as follows c("A", "B", "C", "DRB1", "DQA1", "DQB1", "DPB1")
 # sample_id: sample id should be unique for each sample
 # allele1, allele2: alleles 1 and 2 for each sample
 # prob: probability of imputed HLA haplotype
-hla_imputations_file <- "jacob_phased_hap_reshaped.txt"
+hla_imputations_file <- "ukbb_haplotypes_for_grs2.txt"
 
 
 # hla and non-hla bed files
-hla_bed_prefix <- ""
-hla_genotypes_df_file <- "t1dgc_grs2_hla_alleles.txt"
-
-non_hla_prefix <- "t1dgc_grs2-snps_3971_rsIds"
-non_hla_genotypes_df_file <- ""
+vcf_file = "ukbb_genotypes.vcf.gz"
 
 # beta value files for score calculation
 interaction_betas_file <- "https://raw.githubusercontent.com/nehmea/Polychronakos-lab/main/grs2_calculation/grs2-interaction_betas.txt"
@@ -37,7 +33,7 @@ if (!require(utils)) {
 library(utils)
 
 # Open the log file for writing
-log_file <- "GRS2-log.txt"
+log_file <- "grs2_calculation.log"
 sink(log_file, append = TRUE, split = T)
 
 ############################### required packages ###############################
@@ -52,9 +48,18 @@ if (length(missing_packages) > 0) {
   install.packages(missing_packages)
 }
 
-############################### Methods #######################################
+# Load the packages using lapply()
+lapply(required_packages, library, character.only = TRUE)
 
-#######################  preparing input for GRS2 calculation #######################
+############################### Methods #######################################
+# change unwanted characters to avoid errors in reading the file (fam file)
+gsub_file <- function(file_name, pattern, replacement) {
+  replaced_lines <- gsub(pattern, replacement, readLines(file_name))
+  writeLines(replaced_lines, file_name)
+  return(TRUE)
+}
+
+#################  preparing input for GRS2 calculation #######################
 # reading imputation file
 haplotypes <- read.table(hla_imputations_file, header = T, sep = "\t")
 for (column in c("allele1", "allele2")) {
@@ -80,7 +85,7 @@ if (length(missing_fields > 0)) {
 haplotypes[haplotypes$prob < prob_cutoff, c("allele1", "allele2")] <- NA
 
 # perform cutoff to get high-qulaity samples
-excluded_samples = haplotypes[haplotypes$locus %in% important_loci & (is.na(haplotypes$allele1) | is.na(haplotypes$allele2)),]$sample_id
+excluded_samples = unique(haplotypes[haplotypes$locus %in% important_loci & (is.na(haplotypes$allele1) | is.na(haplotypes$allele2)),]$sample_id)
 # haplotypes = hla_imputations[haplotypes$sample_id %in% included_samples, ]
 
 ###########################  GRS2 calculation ############################
@@ -88,7 +93,7 @@ sample_id_list <- as.character(unique(haplotypes$sample_id))
 included_samples = sample_id_list[!sample_id_list %in% excluded_samples]
 
 # beta value files for score calculation
-for (filename in c("interaction_betas_file", "drdq_betas_file", "non_drdq_betas_file", "non_hla_betas_file")) {
+for (filename in c("interaction_betas_file", "drdq_betas_file", "snp_betas_file")) {
   filename_value <- get(filename)
   if (filename_value != "" & !is.null(filename_value)) {
     assign(gsub("_file", "", filename), read.table(filename_value, header = T))
@@ -97,10 +102,10 @@ for (filename in c("interaction_betas_file", "drdq_betas_file", "non_drdq_betas_
 
 grs2_scores <- data.frame(matrix(NA,
   nrow = length(sample_id_list),
-  ncol = 4,
+  ncol = 3,
   dimnames = list(
     sample_id_list,
-    c("interaction_score", "drdq_score", "non_drdq_score", "non_hla_score")
+    c("interaction_score", "drdq_score", "snp_score")
   )
 ))
 
@@ -108,8 +113,8 @@ sample_interaction_betas <- interaction_betas
 sample_drdq_betas <- drdq_betas
 
 # progress bar
-rm(prog_bar)
-prog_bar <- progress_bar$new(
+rm(progress_bar)
+progress_bar <- progress_bar$new(
   format = "(:spin) [:bar] :percent [Elapsed time: :elapsedfull || Estimated time remaining: :eta]",
   total = length(unique(haplotypes$sample_id)),
   complete = "=", # Completion bar character
@@ -155,16 +160,34 @@ for (sample_id in included_samples) {
   }
 
   # grs2_scores[sample_id, 'grs2_score'] = sample_interaction_hap_score + sample_drdq_score + sample_hla_score + sample_non_hla_score
-  prog_bar$tick()
+  progress_bar$tick()
 }
 
 
-#TODO: calculate grs2_snp_score using plink subprocess
-snp_betas
+#calculate grs2_snp_score using plink subprocess
+write.table(snp_betas, 'grs2_snp_betas_all_for_plink.txt', sep='\t', quote = FALSE)
+
+#unix cwd
+cwd = system2('wsl', "pwd", stdout = TRUE)
+# Define the Plink command as a character string
+plink_command = paste("plink2 --vcf", 
+                      vcf_file,
+                      "--score grs2_snp_betas_all_for_plink.txt 1 2 3 list-variants cols=fid,pheno1,nallele,denom,dosagesum,scoreavgs,scoresums no-mean-imputation ignore-dup-ids --out",
+                      'grs2_snp_score_plink_no-imputation')
+
+# Run the Plink command and wait for it to finish
+system(command = paste("wsl", plink_command), wait = TRUE)
+
+#read plink2 --score results
+gsub_file('grs2_snp_score_plink_no-imputation.sscore', '#', '_')
+snp_scores = read.table('grs2_snp_score_plink_no-imputation.sscore', header = T, row.names=2)
+snp_scores = snp_scores[,'SCORE1_SUM', drop=F]
+rownames(snp_scores) = gsub("(^[0-9]+_)", "", rownames(snp_scores))
+grs2_scores[rownames(snp_scores),'snp_score'] = snp_scores$SCORE1_SUM
+
 
 # calculate grs2 score for all samples
-grs2_scores$grs2_score <- rowSums(grs2_scores, na.rm = T)
-grs2_scores$grs2_score[!complete.cases(grs2_scores)] <- NA
+grs2_scores$grs2_score <- rowSums(grs2_scores, na.rm = F)
 
 # append to EXCEL file
 write.xlsx2(grs2_scores,
@@ -174,7 +197,7 @@ write.xlsx2(grs2_scores,
 )
 
 
-for (score_data in c("sample_interaction_betas", "sample_drdq_betas", "sample_non_drdq_betas", "sample_non_hla_betas")) {
+for (score_data in c("sample_interaction_betas", "sample_drdq_betas")) {
   write.xlsx2(get(score_data),
               paste0(output_grs2_filename, '.xlsx'),
     sheetName = score_data,
@@ -187,21 +210,17 @@ library(ggplot2)
 ggplot(melt(grs2_scores), aes(x = variable, y = value)) +
   geom_violin() +
   geom_boxplot(width = 0.1, fill = "grey") +
-  theme_classic()
-ggsave(paste0(output_grs2_filename, 'violin_plot.png'), dpi = 300)
+  theme_classic() + 
+  scale_y_continuous(breaks = seq(-10, 25, by = 5))
+ggsave(paste0(output_grs2_filename, '_violin_plot.png'), dpi = 300)
 
-#boxplot(grs2_scores)
-
-#percentile_90 <- quantile(grs2_scores$grs2_score, probs = 0.9, na.rm = T)
-#sum(grs2_scores$grs2_score > percentile_90, na.rm = T)
+ggplot(grs2_scores, aes(x = grs2_score)) +
+  geom_density(fill='steelblue') +
+  theme_classic()+
+  scale_x_continuous(breaks = seq(-10, 25, by = 5), limits=c(0, 20))
+ggsave(paste0(output_grs2_filename, '_density_plot.png'), dpi = 300)
 
 ############################## closing log file ################################
 # Stop writing to the log file
 sink()
 sink()
-
-# #TODO: spread haplotypes and add scores and betas to check if they align
-# data.frame(sample_id=NA, allel1=NA, allele2=NA,t(interaction_betas[, 1:4]))
-# x = haplotypes[haplotypes$locus %in% c('DQA1', 'DQB1'), c('locus','sample_id', 'allele1', 'allele2')]
-# rownames(x) = x[, 1]
-# t(sample_interaction_betas)
