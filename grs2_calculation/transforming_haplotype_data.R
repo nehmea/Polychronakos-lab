@@ -1,29 +1,28 @@
 rm(list= ls())
 
+haplotype_columns= c(2:13) #including sample_id column
+sample_id_column = 'eID'
+add_colon = TRUE
+original_data = read.table("Formatted_GRS2_Project_Controls_HLA.txt", header = T)
+original_data = original_data[, c(grep(sample_id_column,colnames(original_data)), haplotype_columns)]
+colnames(original_data) = toupper(gsub("hla_", "", colnames(original_data)))
+loci = unique(gsub("_.*","", colnames(original_data)[2:length(colnames(original_data))]))
 
-haplotype_columns= c(1, 6:21) #including sample_id column
-sample_id_column = 'SAMPLE_ID'
-add_colon = FALSE
-jacob_data_original = read.table("FAM_Haplotype_Summary_GL_String_2023-07-07.txt", header = T)
-jacob_data_original = jacob_data_original[, haplotype_columns]
-colnames(jacob_data_original) = toupper(gsub("hla_", "", colnames(jacob_data_original)))
-loci = unique(gsub("_.*","", colnames(jacob_data_original)[2:length(colnames(jacob_data_original))]))
 
-
-jacob_data = data.frame()
+reshaped_data = data.frame()
 for(locus in loci) {
-  locus_alleles = data.frame(jacob_data_original[, toupper(sample_id_column)], 
+  locus_alleles = data.frame(original_data[, toupper(sample_id_column)], 
                              locus = locus,
-                             jacob_data_original[,grep(paste0("^", locus, "_[0-9]"), colnames(jacob_data_original), value = T)]
+                             original_data[,grep(paste0("^", locus, "_[0-9]"), colnames(original_data), value = T)]
                              )
-  #locus_alleles = jacob_data_original[, c('ANALYTIC_ID', grep(paste0("^", locus, "_[0-9]"), colnames(jacob_data_original), value = T))]
+  #locus_alleles = original_data[, c('ANALYTIC_ID', grep(paste0("^", locus, "_[0-9]"), colnames(original_data), value = T))]
   colnames(locus_alleles) = c('sample_id', 'locus','allele1', 'allele2')
-  jacob_data = rbind(jacob_data, locus_alleles)
+  reshaped_data = rbind(reshaped_data, locus_alleles)
 }
 
 if(add_colon){
 for(column in c("allele1", "allele2")){
-  jacob_data[,column] = sapply(jacob_data[,column], function(x) {
+  reshaped_data[,column] = sapply(reshaped_data[,column], function(x) {
     x= as.character(x)
     if(nchar(x) == 3) { 
       x = paste0("0", x)
@@ -35,9 +34,9 @@ for(column in c("allele1", "allele2")){
 }
 }
 
-jacob_data$prob = 1
+reshaped_data$prob = 1
 
-write.table(as.matrix(jacob_data), 'jacob_phased_hap_reshaped.txt', sep='\t', row.names = F)
+write.table(as.matrix(reshaped_data), 'ukbb_haplotypes_for_grs2.txt', sep='\t', row.names = F)
 
 ############################## extracting grs2 relevant HLA alleles from haplotypes #######################################
 library(stringr)
@@ -49,12 +48,12 @@ grs2_hla_alleles[, c('locus', 'allele')] = str_split_fixed(grs2_hla_alleles$Locu
 grs2_hla_alleles$allele = paste0(substr(grs2_hla_alleles$allele, 1, 2), ":", substr(grs2_hla_alleles$allele, 3,4))
 grs2_hla_alleles$Locus = paste0(grs2_hla_alleles$locus, '*', grs2_hla_alleles$allele)
 
-jacob_allele_data = jacob_data
+allele_data = reshaped_data
 
 library(progress)
 rm(prog_bar)
 prog_bar = progress_bar$new(format = "(:spin) [:bar] :percent [Elapsed time: :elapsedfull || Estimated time remaining: :eta]",
-                            total = length(unique(jacob_allele_data$sample_id)),
+                            total = length(unique(allele_data$sample_id)),
                             complete = "=",   # Completion bar character
                             incomplete = "-", # Incomplete bar character
                             current = ">",    # Current bar character
@@ -62,9 +61,9 @@ prog_bar = progress_bar$new(format = "(:spin) [:bar] :percent [Elapsed time: :el
                             width = 100)      # Width of the progress bar
 
 
-for(sample_id in as.character(unique(jacob_allele_data$sample_id))) {
+for(sample_id in as.character(unique(allele_data$sample_id))) {
   
-  sample_alleles= jacob_allele_data[jacob_allele_data$sample_id == sample_id, ]
+  sample_alleles= allele_data[allele_data$sample_id == sample_id, ]
   sample_grs2_alleles = data.frame(Locus = grs2_hla_alleles$Locus, 
                                    sample_loci_allele1 = as.numeric(grs2_hla_alleles$Locus %in% paste0(sample_alleles$locus, '*', sample_alleles$allele1)),
                                    sample_loci_allele2 = as.numeric(grs2_hla_alleles$Locus %in% paste0(sample_alleles$locus, '*', sample_alleles$allele2))
@@ -75,6 +74,6 @@ for(sample_id in as.character(unique(jacob_allele_data$sample_id))) {
   prog_bar$tick()
 }
 
-write.table(grs2_hla_alleles[, c('SNP', as.character(unique(jacob_allele_data$sample_id)))],
+write.table(grs2_hla_alleles[, c('SNP', as.character(unique(allele_data$sample_id)))],
             't1dgc_grs2_hla_alleles.txt', sep = '\t', row.names=F)
 
