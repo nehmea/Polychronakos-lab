@@ -7,17 +7,17 @@ important_loci <- c(
   "DQA1", "DQB1" # , 'A', 'B', 'C',
 )
 
-output_grs2_filename = 'ukbb_grs2-scores'
+output_grs2_filename = 'ADAMM_MIS-hla&TOPMed-snp_grs2-scores'
 # path to hla imputations. this should be a tab-delimited file. The file should include the following columns:
 # locus: HLA locus, make sure the loci names as follows c("A", "B", "C", "DRB1", "DQA1", "DQB1", "DPB1")
 # sample_id: sample id should be unique for each sample
 # allele1, allele2: alleles 1 and 2 for each sample
 # prob: probability of imputed HLA haplotype
-hla_imputations_file <- "ukbb_haplotypes_for_grs2.txt"
+hla_imputations_file <- "haplotypes_for_grs2_calculation.txt"
 
 
 # hla and non-hla bed files
-vcf_file = "ukbb_genotypes.vcf.gz"
+vcf_file = "TOPMed_grs2_alleles_rsIds.vcf.gz"
 
 # beta value files for score calculation
 interaction_betas_file <- "https://raw.githubusercontent.com/nehmea/Polychronakos-lab/main/grs2_calculation/grs2-interaction_betas.txt"
@@ -179,17 +179,24 @@ plink_command = paste("plink2 --vcf",
 system(command = paste("wsl", plink_command), wait = TRUE)
 
 #read plink2 --score results
-gsub_file('grs2_snp_score_plink_no-imputation.sscore', '#', '_')
-snp_scores = read.table('grs2_snp_score_plink_no-imputation.sscore', header = T, row.names=2)
+#gsub_file('grs2_snp_score_plink_no-imputation.sscore', '#', '_')
+snp_scores = read.table('grs2_snp_score_plink_no-imputation.sscore', header = T, row.names=2, comment.char="")
 snp_scores = snp_scores[,'SCORE1_SUM', drop=F]
-rownames(snp_scores) = gsub("(^[0-9]+_)", "", rownames(snp_scores))
+#rownames(snp_scores) = gsub("(^[0-9]+_)", "", rownames(snp_scores))
 grs2_scores[rownames(snp_scores),'snp_score'] = snp_scores$SCORE1_SUM
 
+#identify missing SNPs
+present_snps = read.table("grs2_snp_score_plink_no-imputation.sscore.vars")[,1]
+missing_snps = snp_betas[!rownames(snp_betas) %in% present_snps,]
+write.table(missing_snps, "missing_snps.txt", sep='\t', col.names = NA)
 
 # calculate grs2 score for all samples
 grs2_scores$grs2_score <- rowSums(grs2_scores, na.rm = F)
 
-# append to EXCEL file
+
+# append to file
+write.table(grs2_scores, "grs2_scores.txt", sep = '\t', col.names=NA)
+#EXCEL
 write.xlsx2(grs2_scores,
   paste0(output_grs2_filename, '.xlsx'),
   sheetName = "grs2_scores",
