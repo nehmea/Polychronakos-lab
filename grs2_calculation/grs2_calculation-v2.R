@@ -7,17 +7,17 @@ important_loci <- c(
   "DQA1", "DQB1" # , 'A', 'B', 'C',
 )
 
-output_grs2_filename = 'ADAMM_MIS-hla&TOPMed-snp_grs2-scores'
+output_grs2_filename = 'ADAMM_TOPMED_HIBAG_common-snps'
 # path to hla imputations. this should be a tab-delimited file. The file should include the following columns:
 # locus: HLA locus, make sure the loci names as follows c("A", "B", "C", "DRB1", "DQA1", "DQB1", "DPB1")
 # sample_id: sample id should be unique for each sample
 # allele1, allele2: alleles 1 and 2 for each sample
 # prob: probability of imputed HLA haplotype
-hla_imputations_file <- "haplotypes_for_grs2_calculation.txt"
+hla_imputations_file <- "HIBAG_chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_rsId.txt"
 
 
 # hla and non-hla bed files
-vcf_file = "TOPMed_grs2_alleles_rsIds.vcf.gz"
+vcf_file = "ukbb_genotypes.vcf.gz"
 
 # beta value files for score calculation
 interaction_betas_file <- "https://raw.githubusercontent.com/nehmea/Polychronakos-lab/main/grs2_calculation/grs2-interaction_betas.txt"
@@ -182,7 +182,8 @@ system(command = paste("wsl", plink_command), wait = TRUE)
 #gsub_file('grs2_snp_score_plink_no-imputation.sscore', '#', '_')
 snp_scores = read.table('grs2_snp_score_plink_no-imputation.sscore', header = T, row.names=2, comment.char="")
 snp_scores = snp_scores[,'SCORE1_SUM', drop=F]
-#rownames(snp_scores) = gsub("(^[0-9]+_)", "", rownames(snp_scores))
+#rownames(snp_scores) = gsub("(^[0-9]+_)", "", rownames(snp_scores)) $for ADAMM_TOPMED_HIBAG only
+#rownames(snp_scores) = gsub("#", "_", rownames(snp_scores)) $for ADAMM_TOPMED_HIBAG only
 grs2_scores[rownames(snp_scores),'snp_score'] = snp_scores$SCORE1_SUM
 
 #identify missing SNPs
@@ -194,8 +195,6 @@ write.table(missing_snps, "missing_snps.txt", sep='\t', col.names = NA)
 grs2_scores$grs2_score <- rowSums(grs2_scores, na.rm = F)
 
 
-# append to file
-write.table(grs2_scores, "grs2_scores.txt", sep = '\t', col.names=NA)
 #EXCEL
 write.xlsx2(grs2_scores,
   paste0(output_grs2_filename, '.xlsx'),
