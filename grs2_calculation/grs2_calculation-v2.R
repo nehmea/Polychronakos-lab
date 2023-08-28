@@ -167,8 +167,6 @@ for (sample_id in included_samples) {
 #calculate grs2_snp_score using plink subprocess
 write.table(snp_betas, 'grs2_snp_betas_all_for_plink.txt', sep='\t', quote = FALSE)
 
-#unix cwd
-cwd = system2('wsl', "pwd", stdout = TRUE)
 # Define the Plink command as a character string
 plink_command = paste("plink2 --vcf", 
                       vcf_file,
