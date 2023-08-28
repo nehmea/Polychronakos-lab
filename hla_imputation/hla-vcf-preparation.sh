@@ -140,10 +140,3 @@ printf "Runtime: %02d:%02d:%02d\n" $hours $minutes $seconds
 # Exit with a non-zero code to indicate error
 exit 1  
 
-# Use a dedicated HLA imputation tool such as HIBAG, HLA*IMP, or HLA*PRG.
-# Follow the specific instructions for running the chosen tool to impute the phased HLA haplotypes.
-
-# Step 5: Perform post-imputation analysis
-# Perform any downstream analysis using the imputed HLA alleles.
-# This may include association studies, functional interpretation, or other analyses.
-# <Add your code here>
