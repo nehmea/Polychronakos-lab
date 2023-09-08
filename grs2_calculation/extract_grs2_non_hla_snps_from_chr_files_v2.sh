@@ -137,7 +137,7 @@ if [ -n "$vcf_files" ]; then
 		echo "WARNING: annotating with rsIDs"
 		#perform annotation
 		bgzip "$rsId_file"
-		tabix -p vcf "${rsId_file}.gz"
+		tabix -s1 -b2 -e2 "${rsId_file}.gz"
 		bcftools annotate "${vcf_dir}/filtered/concatenated_snps.vcf.gz" --annotations "${rsId_file}.gz" -c CHROM,POS,ID -Oz -o "${vcf_dir}/filtered/concatenated_snps_rsIds.vcf.gz"
 	fi
 fi
