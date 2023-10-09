@@ -1,0 +1,8 @@
+#run into TOPMed and check output QC
+Name: Ribosomal_JDRF_DM-P01 #
+Reference Panel: TOPMed r2
+Array Build: GRCh37/hg19
+rsq filter: 0.3
+Phasing: Eagle v2.4 (phased output)
+Population: vs. TOPMed Panel (all)
+Mode: Quality Control & Imputation
