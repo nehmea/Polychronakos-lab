@@ -7,17 +7,17 @@ important_loci <- c(
   "DQA1", "DQB1" # , 'A', 'B', 'C',
 )
 
-output_grs2_filename = 'ADAMM_TOPMED_HIBAG_common-snps'
+output_grs2_filename = 'JRDF_TOMed-1KGP-EUR-panel-r0.1'
 # path to hla imputations. this should be a tab-delimited file. The file should include the following columns:
 # locus: HLA locus, make sure the loci names as follows c("A", "B", "C", "DRB1", "DQA1", "DQB1", "DPB1")
 # sample_id: sample id should be unique for each sample
 # allele1, allele2: alleles 1 and 2 for each sample
 # prob: probability of imputed HLA haplotype
-hla_imputations_file <- "HIBAG_chr6.dose_filtered-MAF0.01-R0.8_chr628477797-33448354_rsId.txt"
+hla_imputations_file <- "MIS-hla_haplotypes_for_grs2_calculation.txt"
 
 
 # hla and non-hla bed files
-vcf_file = "ukbb_genotypes.vcf.gz"
+vcf_file = "JRDF_TOMed-1KGP-EUR-panel-r0.1_snps_rsIds.vcf.gz"
 
 # beta value files for score calculation
 interaction_betas_file <- "https://raw.githubusercontent.com/nehmea/Polychronakos-lab/main/grs2_calculation/grs2-interaction_betas.txt"
