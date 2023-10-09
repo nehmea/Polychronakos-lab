@@ -45,7 +45,7 @@ else
 	# Regular expression pattern
 	pattern="^chr[0-9]+:[0-9]+-[0-9]+$"
 	if [[ ! $region =~ $pattern ]]; then
-		echo "region is not in the correct format."
+		echo "region is not in the correct format. region should be in the format chr6:28510120-33480577"
 		exit 1
 	fi
 fi
