@@ -1,15 +1,15 @@
 #!/bin/bash
 
+# ./extract_grs2_snps_from_chr_files.sh --zip_dir .. --region_file grs2-alleles-info-hg19.txt --rsid_file grs2-alleles-info-hg19.txt --password 'Jd3e0w(uCmY*ZS'
+
 max_cores=4
 remove_files=false  # Default value for the --remove flag
 password=""
 # Directory paths
-vcf_zip_dir=""
 vcf_dir="."
 
 # filenames
 snp_file="grs2-alleles-info-hg19.txt"
-bed_output="concatenated"
 rsId_file="grs2-alleles-info-hg19.txt"
 
 # List of chromosomes
@@ -19,24 +19,29 @@ chromosomes=$(seq 1 22)
 
 # Read the argument values
 while [[ "$#" -gt 0 ]]
-  do
+do
     case $1 in
-	-chr|chromosomes_list) chromosomes="$2"; shift;; 
-    -r|--remove) remove_files=true; shift;; 
-	-vcf|--vcfDir) vcf_dir="$2"; shift;;
-	-zip|--zip_dir) vcf_zip_dir="$2"; shift;;
-	-snp|--region_file) snp_file="$2"; shift;;
-	-rsid|--rsid_file) rsId_file="$2"; shift;;
-	-bed|--output_bed) bed_output="$2"; shift;;
-	-cores|--workers) max_cores="$2"; shift;;
-	-p|--password) password="$2"; shift;;
+		-chr|chromosomes_list) chromosomes="$2"; shift;; 
+		-r|--remove) remove_files=true;;
+		-vcf|--vcfDir) vcf_dir="$2"; shift;;
+		-zip|--zip_dir) vcf_zip_dir="$2"; shift;;
+		-snp|--region_file) snp_file="$2"; shift;;
+		-rsid|--rsid_file) rsId_file="$2"; shift;;
+		-cores|--workers) max_cores="$2"; shift;;
+		-p|--password) password="$2"; shift;;
     esac
     shift
 done
 
+echo "vcf_zip_dir: $vcf_zip_dir"
+echo "remove_files: $remove_files"
+echo "snp_file: $snp_file"
+echo "rsId_file: $rsId_file"
+echo "password: $password"
+
 # Create the output directory if it does not exist
 # check if vcf_zip_dir provided
-if [ -n "$vcf_zip_dir" ] && [ -n "${vcf_zip_dir// }" ]; then
+if [ -n $vcf_zip_dir ]; then
 	vcf_dir="./vcf_dir"
 	sudo mkdir "${vcf_dir}"
 	sudo mkdir "${vcf_dir}/filtered"
@@ -71,39 +76,45 @@ process_chromosome() {
 	local snp_file="$3"
 	local vcf_dir="$4"
 	local max_cores="$5"
+	local password="$6"
+	local remove_files="$7"
 	
 	chr_num="${chr_num_initial#chr}"
 
 	echo "processing chromsome ${chr_num}"
 		
 	# Zip file
-	if [ -n "$vcf_zip_dir" ] && [ -n "${vcf_zip_dir// }" ]; then
-		zip_file=$(ls $vcf_zip_dir/*chr_$chr_num*.zip)
-
+	if [ -n $vcf_zip_dir ]; then
+		zip_file=$(ls $vcf_zip_dir/*chr_$chr_num[!0-9]*zip)
+		
 		# Extract VCF file from the zip
 		if [ -e "$zip_file" ]; then
-			#vcf_gz_file="*chr${chr_num}*.vcf.gz"
-			unzip -n -P $password -d "${vcf_dir}"
+			echo "extracting ZIP file"
+			unzip -n -P "$password" "$zip_file" "chr${chr_num}[!0-9]*vcf.gz" -d "${vcf_dir}"
 		fi
 	fi
 	
-	vcf_gz_file=$(ls $vcf_dir/*chr${chr_num}[!0-9]*.vcf.gz)
+	vcf_gz_file=$(ls $vcf_dir/*chr${chr_num}[!0-9]*vcf.gz)
+	
 	#Check if vcf.gz exists
 	if [ -n "$vcf_gz_file" ]; then
-		echo "vcf_gz_file = $vcf_gz_file"
+		echo "vcf_gz_file: $vcf_gz_file"
 		
 		#create index files
 		# Check if both .tbi and .csi index files do not exist
 		#if [ ! -e "${vcf_dir}/${vcf_gz_file}.tbi" ] && [ ! -e "${vcf_dir}/${vcf_gz_file}.csi" ]; then
 		bcftools index $vcf_gz_file --threads $max_cores
+		
 		#fi
 		
 		# Extract the snps with the specified regions in snp_file
+		echo "extracting SNPs from VCF file"
 		bcftools view $vcf_gz_file -R "${snp_file}" -Oz -o "${vcf_dir}/filtered/chr${chr_num}_filtered.vcf.gz"
 		
 		# Delete the .vcf.gz file if the --remove flag is present
 		if [ "$remove_files" = true ] && [ -n "$vcf_zip_dir" ] && [ -n "${vcf_zip_dir// }" ]; then
 			rm $vcf_dir/*chr$chr_num*.gz
+			rm $vcf_dir/*chr$chr_num*.csi
 		fi
 
 		echo "Chromosome ${chr_num} processed successfully."
@@ -115,7 +126,7 @@ process_chromosome() {
 # Export the function to make it accessible to parallel
 export -f process_chromosome
 
-parallel --jobs "$max_cores" process_chromosome ::: "${chromosomes[@]}" ::: "$vcf_zip_dir" ::: "$snp_file" ::: "$vcf_dir" ::: "$max_cores"
+parallel --jobs "$max_cores" process_chromosome ::: "${chromosomes[@]}" ::: "$vcf_zip_dir" ::: "$snp_file" ::: "$vcf_dir" ::: "$max_cores" ::: "$password" ::: "$remove_files"
 
 # Wait for all background processes to finish
 wait
@@ -126,6 +137,7 @@ vcf_files=$(ls $vcf_dir/filtered/*_filtered.vcf.gz)
 
 #check if files exist
 if [ -n "$vcf_files" ]; then
+	echo "concainating SNP files"
 
 	#concatenate
 	bcftools concat ${vcf_files} -Oz -o "${vcf_dir}/filtered/concatenated_snps.vcf.gz"
