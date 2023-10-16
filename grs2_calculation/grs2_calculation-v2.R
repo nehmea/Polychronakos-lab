@@ -89,6 +89,7 @@ excluded_samples = unique(haplotypes[haplotypes$locus %in% important_loci & (is.
 # haplotypes = hla_imputations[haplotypes$sample_id %in% included_samples, ]
 
 ###########################  GRS2 calculation ############################
+###########################  preps ############################
 sample_id_list <- as.character(unique(haplotypes$sample_id))
 included_samples = sample_id_list[!sample_id_list %in% excluded_samples]
 
@@ -112,6 +113,7 @@ grs2_scores <- data.frame(matrix(NA,
 sample_interaction_betas <- interaction_betas
 sample_drdq_betas <- drdq_betas
 
+###########################  haplotype scores ############################
 # progress bar
 rm(progress_bar)
 progress_bar <- progress_bar$new(
@@ -163,7 +165,7 @@ for (sample_id in included_samples) {
   progress_bar$tick()
 }
 
-
+###########################  SNP scores ############################
 #calculate grs2_snp_score using plink subprocess
 write.table(snp_betas, 'grs2_snp_betas_all_for_plink.txt', sep='\t', quote = FALSE)
 
@@ -189,10 +191,11 @@ present_snps = read.table("grs2_snp_score_plink_no-imputation.sscore.vars")[,1]
 missing_snps = snp_betas[!rownames(snp_betas) %in% present_snps,]
 write.table(missing_snps, "missing_snps.txt", sep='\t', col.names = NA)
 
+###########################  total score ############################
 # calculate grs2 score for all samples
 grs2_scores$grs2_score <- rowSums(grs2_scores, na.rm = F)
 
-
+###########################  write to file ############################
 #EXCEL
 write.xlsx2(grs2_scores,
   paste0(output_grs2_filename, '.xlsx'),
@@ -209,6 +212,7 @@ for (score_data in c("sample_interaction_betas", "sample_drdq_betas")) {
   )
 }
 
+###########################  plot ############################
 library(reshape2)
 library(ggplot2)
 ggplot(melt(grs2_scores), aes(x = variable, y = value)) +
